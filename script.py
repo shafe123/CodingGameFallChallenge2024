@@ -1,20 +1,23 @@
 import sys
 import math
 
-# Auto-generated code below aims at helping you parse
-# the standard input according to the problem statement.
 
-class building():
-    def __init__(self, bld_type, x_coord, y_coord):
-        self.type = bld_type
-        self.coord = coord(x_coord, y_coord)
-
-class coord():
+class coord:
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
-class tube():
+
+class building:
+    def __init__(self, bld_type: int, coordinates: coord):
+        self.type = bld_type
+        self.coordinates = coordinates
+
+    def __str__(self) -> str:
+        return f"{self.coordinates}: {self.type}"
+
+
+class tube:
     @classmethod
     def build_cost(cls, building_1: building, building_2: building) -> float:
         distance = calc_distance(building_1.coord, building_2.coord)
@@ -28,7 +31,11 @@ class tube():
     def upgrade_cost(self) -> float:
         return tube.build_cost(self.endpoints[0], self.endpoints[1]) * (capacity + 1)
 
-class teleport():
+    def __str__(self) -> str:
+        return f"{building_1} <-> {building_2}: {capacity}"
+
+
+class teleport:
     @classmethod
     def build_cost(cls) -> float:
         return -5000
@@ -37,7 +44,11 @@ class teleport():
         self.begin = source
         self.end = destination
 
-class pod():
+    def __str__(self) -> str:
+        return f"{self.source} -> {self.destination}: ∞"
+
+
+class pod:
     @classmethod
     def build_cost(cls):
         return -1000
@@ -50,53 +61,57 @@ class pod():
         return 750
 
 
+class landing_pad:
+    def __init__(self, id, coord: coord, astronauts: list[int]) -> None:
+        self.id = id
+        self.coordinates = coord
+        self.astronauts = astronauts[:]
+
+
 def calc_distance(coord_1: coord, coord_2: coord) -> float:
-    return math.sqrt((coord_1.x - coord_2.x) ** 2  + (coord_1.y - coord_2.y) ** 2)
+    return math.sqrt((coord_1.x - coord_2.x) ** 2 + (coord_1.y - coord_2.y) ** 2)
 
 
 month = 1
 all_data = {}
 landing_pads = {}
 buildings = {}
-new_astronauts = []
+tubes = []
+teleports = []
+pod_routes = {}
+
 # game loop
 while True:
-    month_data = {}
-
-    month_data['available_resources'] = int(input())
-    month_data['num_travel_routes'] = int(input())
-    month_data['pod_routes'] = []
-    month_data['transport_routes'] = []
+    num_routes = int(input())
     # process transport lines
-    for i in range(month_data['num_travel_routes']):
-        building_id_1, building_id_2, capacity = [int(j) for j in input().split()]
+    for i in range(num_routes):
+        building_1, building_2, capacity = [int(j) for j in input().split()]
         if capacity == 0:
-            month_data['transport_routes'].append((building_id_1, building_id_2))
+            teleports.append(teleport(buildings[building_1], buildings[building_2]))
         else:
-            month_data['pod_routes'].append((building_id_1, building_id_2, capacity))
-    
-    month_data['num_pods'] = int(input())
-    month_data['pod_itineraries'] = {}
+            tubes.append(tube(buildings[building_1], buildings[building_2], capacity))
+
+    num_pods = int(input())
     # process transport pods
-    for i in range(month_data['pods']):
+    for i in range(num_pods):
         pod_properties = input()
         pod_id = pod_properties[0]
-        itinerary_length = pod_properties[1]
-        month_data['pod_itineraries'][pod_id] = pod_properties[2:]
+        pod_routes[pod_id] = pod(pod_id, pod_properties[2:])
 
-    month_data['new_buildings'] = int(input())
-    
-    # process buildings
-    for i in range(month_data['new_buildings']):
+    new_buildings = int(input())
+
+    # process **new** buildings
+    for i in range(new_buildings):
         building_properties = [int(x) for x in input().split()]
 
         if building_properties[0] == 0:
             pad_id, xCoord, yCoord, astro_count = building_properties[1:5]
-            new_astronauts.extend(building_properties[5:])
+            landing_pads[pad_id] = landing_pad(
+                pad_id, (xCoord, yCoord), building_properties[5:]
+            )
         else:
             bld_type, bld_id, xCoord, yCoord = building_properties
-            buildings[bld_id] = bld_type, xCoord, yCoord
-            
+            buildings[bld_id] = building(bld_type, (xCoord, yCoord))
 
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
