@@ -115,7 +115,6 @@ def build_pod(route: list[building], id: int = None):
 
 month = 1
 all_data = {}
-landing_pads: dict[landing_pad] = {}
 buildings: dict[building] = {}
 tubes: list[tube] = []
 teleports: list[teleport] = []
@@ -151,9 +150,10 @@ while True:
 
         if building_properties[0] == 0:
             pad_id, xCoord, yCoord, astro_count = building_properties[1:5]
-            landing_pads[pad_id] = landing_pad(
+            buildings[pad_id] = landing_pad(
                 pad_id, coord(xCoord, yCoord), building_properties[5:]
             )
+            visited_modules.add(buildings[pad_id])
         else:
             bld_type, bld_id, xCoord, yCoord = building_properties
             buildings[bld_id] = building(bld_type, coord(xCoord, yCoord), bld_id)
@@ -163,29 +163,8 @@ while True:
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
     actions = []
 
-    # very simple approach
-    # build spaceport connections
-    if month == 1:
-        for id, pad in landing_pads.items():
-            print(f"pad{pad.id}", file=sys.stderr, flush=True)
-            # find nearest building
-            minimum_distance = math.inf
-            nearest_building = None
-
-            for candidate in unvisited_modules:
-                candidate_distance = calc_distance(
-                    pad.coordinates, candidate.coordinates
-                )
-                if candidate_distance < minimum_distance:
-                    nearest_building = candidate
-                    minimum_distance = candidate_distance
-            print(f"nearest{nearest_building.id}", file=sys.stderr, flush=True)
-            if nearest_building:
-                actions.append(build_tube(pad, nearest_building))
-                actions.append(build_pod([pad, nearest_building]))
-                visited_modules.add(nearest_building)
-                unvisited_modules.remove(nearest_building)
-
+    # very simple, greedy approach
+    # connect a tube to the closest already-connected building
     for mod in unvisited_modules:
         print(f"mod{mod.id}", file=sys.stderr, flush=True)
         # find nearest visited building
