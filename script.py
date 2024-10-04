@@ -8,13 +8,25 @@ class coord:
         self.y = y
 
 
-class building:
-    def __init__(self, bld_type: int, coordinates: coord):
+class module:
+    def __init__(self, bld_type: int, coordinates: coord, id: int):
         self.type = bld_type
         self.coordinates = coordinates
+        self.id = id
 
     def __str__(self) -> str:
         return f"{self.coordinates}: {self.type}"
+
+
+class landing_pad(module):
+    def __init__(self, id, coord: coord, astronauts: list[int]) -> None:
+        super().__init__(0, coord, id)
+        self.astronauts = astronauts[:]
+
+
+class building(module):
+    def __init__(self, bld_type: int, coordinates: coord, id: int):
+        super().__init__(bld_type, coordinates, id)
 
 
 class tube:
@@ -61,27 +73,60 @@ class pod:
         return 750
 
 
-class landing_pad:
-    def __init__(self, id, coord: coord, astronauts: list[int]) -> None:
-        self.id = id
-        self.coordinates = coord
-        self.astronauts = astronauts[:]
-
-
 def calc_distance(coord_1: coord, coord_2: coord) -> float:
     return math.sqrt((coord_1.x - coord_2.x) ** 2 + (coord_1.y - coord_2.y) ** 2)
 
 
+def point_intersect(point: coord, B: coord, C: coord):
+    epsilon = 0.000001
+    return (
+        -epsilon
+        < calc_distance(B, point) + calc_distance(point, C) - calc_distance(B, C)
+        < epsilon
+    )
+
+
+def orientation(coord1: coord, coord2: coord, coord3: coord):
+    prod = (coord3.y - coord1.y) * (coord2.x - coord1.x) - (coord2.y - coord1.y) * (
+        coord3.x - coord1.x
+    )
+    return math.copysign(1, prod)
+
+
+def segment_intersect(coord1: coord, coord2: coord, coord3: coord, coord4: coord):
+    return (
+        orientation(coord1, coord2, coord3) * orientation(coord1, coord2, coord4) < 0
+        and orientation(coord3, coord4, coord1) * orientation(coord3, coord4, coord2)
+        < 0
+    )
+
+
+def build_tube(source: building, destination: building):
+    return f"TUBE {source.id} {destination.id}"
+
+
+def build_pod(route: list[building], id: int = None):
+    global next_route_id
+    if not id:
+        id = next_route_id
+        next_route_id += 1
+    return f"POD {id} " + " ".join([str(bldg.id) for bldg in route])
+
+
 month = 1
 all_data = {}
-landing_pads = {}
-buildings = {}
-tubes = []
-teleports = []
-pod_routes = {}
+landing_pads: dict[landing_pad] = {}
+buildings: dict[building] = {}
+tubes: list[tube] = []
+teleports: list[teleport] = []
+pod_routes: dict[pod] = {}
+unvisited_modules: set[building] = set()
+visited_modules: set[building] = set()
+next_route_id = 1
 
 # game loop
 while True:
+    available_resources = int(input())
     num_routes = int(input())
     # process transport lines
     for i in range(num_routes):
@@ -107,14 +152,62 @@ while True:
         if building_properties[0] == 0:
             pad_id, xCoord, yCoord, astro_count = building_properties[1:5]
             landing_pads[pad_id] = landing_pad(
-                pad_id, (xCoord, yCoord), building_properties[5:]
+                pad_id, coord(xCoord, yCoord), building_properties[5:]
             )
         else:
             bld_type, bld_id, xCoord, yCoord = building_properties
-            buildings[bld_id] = building(bld_type, (xCoord, yCoord))
+            buildings[bld_id] = building(bld_type, coord(xCoord, yCoord), bld_id)
+            unvisited_modules.add(buildings[bld_id])
 
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
+    actions = []
+
+    # very simple approach
+    # build spaceport connections
+    if month == 1:
+        for id, pad in landing_pads.items():
+            print(f"pad{pad.id}", file=sys.stderr, flush=True)
+            # find nearest building
+            minimum_distance = math.inf
+            nearest_building = None
+
+            for candidate in unvisited_modules:
+                candidate_distance = calc_distance(
+                    pad.coordinates, candidate.coordinates
+                )
+                if candidate_distance < minimum_distance:
+                    nearest_building = candidate
+                    minimum_distance = candidate_distance
+            print(f"nearest{nearest_building.id}", file=sys.stderr, flush=True)
+            if nearest_building:
+                actions.append(build_tube(pad, nearest_building))
+                actions.append(build_pod([pad, nearest_building]))
+                visited_modules.add(nearest_building)
+                unvisited_modules.remove(nearest_building)
+
+    for mod in unvisited_modules:
+        print(f"mod{mod.id}", file=sys.stderr, flush=True)
+        # find nearest visited building
+        minimum_distance = math.inf
+        nearest_building = None
+        for candidate in visited_modules:
+            candidate_distance = calc_distance(mod.coordinates, candidate.coordinates)
+            if candidate_distance < minimum_distance:
+                nearest_building = candidate
+                minimum_distance = candidate_distance
+
+        if nearest_building:
+            actions.append(build_tube(mod, nearest_building))
+            actions.append(build_pod([mod, nearest_building, mod]))
+            visited_modules.add(nearest_building)
+            if nearest_building in unvisited_modules:
+                unvisited_modules.remove(nearest_building)
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
-    print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")
+    if actions:
+        final_action = ";".join(actions)
+    else:
+        final_action = "WAIT"
+    print(final_action)
+    month += 1
